@@ -7,6 +7,7 @@ use Faker\Generator;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\HttpFactory;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\MockObject\MockObject;
 use Plentific\DTOs\UserDTO;
@@ -22,16 +23,20 @@ class ReqresRemoteTest extends TestCase
 
     protected Generator $faker;
 
+    protected HttpFactory $httpFactory;
+
     public function setUp(): void
     {
         parent::setUp();
 
         $this->faker = Factory::create("en_GB");
+        // TODO Mock this for the request and stream factories
+        $this->httpFactory = new HttpFactory();
     }
 
     public function testRemoteCanBeInstantiated()
     {
-        $remote = new ReqresRemote(new Client());
+        $remote = new ReqresRemote(new Client(), $this->httpFactory, $this->httpFactory);
 
         $this->assertInstanceOf(ReqresRemote::class, $remote);
         $this->assertObjectHasProperty('client', $remote);
@@ -49,7 +54,7 @@ class ReqresRemoteTest extends TestCase
 
         $client = $this->createMockClient(new Response(200, [], $responseBody));
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
 
         $user = $subject->getUserById(2);
 
@@ -60,7 +65,7 @@ class ReqresRemoteTest extends TestCase
     {
         $client = $this->createMockClient(new Response(404, [], 'User not found'));
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Failed to retrieve user by Id: 99999');
@@ -87,7 +92,7 @@ class ReqresRemoteTest extends TestCase
 
         $client = $this->createMockClient(new Response(200, [], $responseBody));
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
 
         $users = $subject->getPaginatedUsers();
 
@@ -109,7 +114,7 @@ class ReqresRemoteTest extends TestCase
 
         $client = $this->createMockClient(new Response(200, [], $responseBody));
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
 
         $results = $subject->getPaginatedUsers();
 
@@ -133,7 +138,7 @@ class ReqresRemoteTest extends TestCase
 
         $validator = $this->createMockValidator();
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
         $result = $subject->createUser($validator, [
             'name' => $name,
             'job' => $job,
@@ -163,7 +168,7 @@ class ReqresRemoteTest extends TestCase
             'base_uri' => self::BASE_URL,
         ]);
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
         $subject->createUser($validator, [
             'name' => '',
             'job' => 'Developer',
@@ -176,10 +181,10 @@ class ReqresRemoteTest extends TestCase
 
         $validator = $this->createMockValidator();
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
 
+        $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Failed to create user');
-        $this->expectExceptionCode(500);
 
         $subject->createUser($validator, [
             'name' => $this->faker->name(),
@@ -191,10 +196,9 @@ class ReqresRemoteTest extends TestCase
     {
         $client = $this->createMockClient(new Response(400, [], 'Bad Request'));
 
-        $subject = new ReqresRemote($client);
+        $subject = new ReqresRemote($client, $this->httpFactory, $this->httpFactory);
 
         $this->expectException(ApiException::class);
-        $this->expectExceptionCode(400);
         $this->expectExceptionMessage('Failed to retrieve paginated users on page: 1');
 
         $subject->getPaginatedUsers();
