@@ -1,0 +1,25 @@
+{
+    "name": "dale-hudson/plentific-test",
+    "description": "Plentific code test",
+    "authors": [
+        {
+            "name": "Dale Hudson",
+            "email": "hudsonn90@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "guzzlehttp/guzzle": "^7.0",
+        "guzzlehttp/psr7": "^2.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Plentific\\": "src/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11",
+        "fakerphp/faker": "^1.23",
+        "squizlabs/php_codesniffer": "^3.10"
+    }
+}
