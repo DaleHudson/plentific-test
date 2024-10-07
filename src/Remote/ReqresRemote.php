@@ -2,27 +2,38 @@
 
 namespace Plentific\Remote;
 
-use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Exception\RequestException;
 use Plentific\DTOs\UserDTO;
 use Plentific\Exceptions\ApiException;
 use Plentific\Validator\Validator;
+use Psr\Http\Client\ClientExceptionInterface;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Http\Message\StreamInterface;
 
 class ReqresRemote implements RemoteInterface
 {
-    // TODO - look into PSR17 Request factory
     public function __construct(
-        private ClientInterface $client
+        private ClientInterface $client,
+        private RequestFactoryInterface $requestFactory,
+        private StreamFactoryInterface $streamFactory
     ) {
     }
 
     public function getUserById(int $id): UserDTO
     {
         try {
-            $response = $this->client->get("users/{$id}");
+            $request = $this->requestFactory->createRequest('GET', "users/{$id}");
+
+            $response = $this->client->sendRequest($request);
 
             $data = json_decode($response->getBody()->getContents(), true);
-        } catch (RequestException $e) {
+
+            if ($data === null || !isset($data['data'])) {
+                throw new ApiException("Failed to retrieve user by Id: $id");
+            }
+
+        } catch (ClientExceptionInterface $e) {
             throw new ApiException("Failed to retrieve user by Id: $id", $e->getCode(), $e);
         }
 
@@ -32,10 +43,18 @@ class ReqresRemote implements RemoteInterface
     public function getPaginatedUsers(int $page = 1): array
     {
         try {
-            $response = $this->client->get("users", ['query' => ['page' => $page]]);
+            $uri = "users?page=$page";
+
+            $request = $this->requestFactory->createRequest('GET', $uri);
+
+            $response = $this->client->sendRequest($request);
 
             $data = json_decode($response->getBody()->getContents(), true);
-        } catch (RequestException $e) {
+
+            if ($data === null || !isset($data['data'])) {
+                throw new ApiException("Failed to retrieve paginated users on page: $page");
+            }
+        } catch (ClientExceptionInterface $e) {
             throw new ApiException("Failed to retrieve paginated users on page: $page", $e->getCode(), $e);
         }
 
@@ -50,15 +69,21 @@ class ReqresRemote implements RemoteInterface
         $this->validateCreateUserData($validator, $name, $job);
 
         try {
-            $response = $this->client->post("users", [
-                'json' => [
+            $request = $this->requestFactory->createRequest('POST', "users")
+                ->withHeader('Content-Type', 'application/json')
+                ->withBody($this->createStreamFromArray([
                     'name' => $name,
                     'job' => $job
-                ]
-            ]);
+                ]));
+
+            $response = $this->client->sendRequest($request);
 
             $data = json_decode($response->getBody()->getContents(), true);
-        } catch (RequestException $e) {
+
+            if ($data === null || !isset($data['id'])) {
+                throw new ApiException("Failed to create user", 500);
+            }
+        } catch (ClientExceptionInterface $e) {
             throw new ApiException("Failed to create user", $e->getCode(), $e);
         }
 
@@ -72,5 +97,12 @@ class ReqresRemote implements RemoteInterface
             ->required('job', $job)
             ->minLength('job', $job)
             ->validate();
+    }
+
+    private function createStreamFromArray(array $data): StreamInterface
+    {
+        $jsonData = json_encode($data);
+
+        return $this->streamFactory->createStream($jsonData);
     }
 }
